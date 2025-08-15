@@ -1,0 +1,346 @@
+---
+title: "Capstone-Bikes-Cyclistic"
+author: "Angela North"
+date: "2025-08-14"
+output:
+  html_document:
+    self_contained: true
+    toc: true
+    toc_float: true
+    theme: flatly
+---
+
+## Google Data Analytics Capstone Project – Cyclistic
+
+### Data Source
+- **Provider:** Lyft, via City of Chicago  
+- **Dataset:** Divvy Bicycle Sharing Data – Q1 2019 & Q1 2020  
+- **License:** [Divvy Data License Agreement] (https://divvybikes.com/data-license-agreement)  
+- **Retrieved:** August 2025  
+
+---
+
+## ASK
+
+**Business Question:**  
+How do annual members and casual riders use Cyclistic bikes differently?
+
+**Core Metrics to Compare by Rider Type:**
+- Frequency of trips (per week, month, year)  
+- Total rides  
+- Mean and median ride duration  
+- Rides by day of week  
+- Rides by month  
+- Top start and end stations  
+
+**Limitations:**  
+- Cannot determine if riders live in Chicago  
+- Cannot track total lifetime usage per customer  
+
+---
+
+## PREPARE
+
+- Newer datasets exceed BigQuery and RStudio (posit.cloud) free version limits — only Q1 2019 & Q1 2020 used (per the course outline)  
+- Total entries: ~700,000 combined.  
+- Data wrangling done in SQL, analysis & visualization in R.  
+- Column alignment, naming, and data type conversions applied for consistency. This includes Q1 2019 column “ride_id” cast to *string* and changing “user_type” entries to match 2020 naming of “member” and “casual”.
+- DISTINCT function used to QC changes
+- Ride start and end times checked for consistency with respect to variable type, and time zone utilized (i.e. UTC).  
+- Data cleaned for:
+  - Duplicate `ride_id`
+  - Null values
+  - Trips ≤ 0 sec or > 86,400 sec (24 hrs)
+  - Station names lowercased and trimmed  
+- Additional columns added for duration, day of week, month, and quarter.
+
+---
+
+## SETUP
+```{r setup, include=FALSE}
+# Auto-install required packages if missing
+packages <- c("tidyverse", "ggplot2", "dplyr")
+installed <- packages %in% rownames(installed.packages())
+if (any(!installed)) install.packages(packages[!installed])
+
+# Load packages
+library(tidyverse)
+library(ggplot2)
+library(dplyr)
+
+# Load data
+load("bike_trip_data.RData")
+
+```
+
+#### Remove HQ-QR
+Remove station HQ QR entries from the table. "HQ QR" likely refers to a quality control station used for bike maintenance and quality checks. This is not a public docking station and therefore does not reflect casual users of the system.
+```{r remove-hq-qr}
+bike_trip_data_raw <- bike_trip_data  # Save original
+bike_trip_data <- bike_trip_data %>%
+  filter(start_station_name != "hq qr",
+         end_station_name != "hq qr")
+```
+
+## ANALYSIS
+### Trip Duraction
+```{r trip duration}
+bike_trip_data %>%
+  group_by(member_casual) %>%
+  summarise(
+    max = max(trip_duration_sec),
+    min = min(trip_duration_sec),
+    mean = mean(trip_duration_sec),
+    median = median(trip_duration_sec)
+  )
+```
+### Plot: Trip Duration - Full Range and Zoomed View  
+*Interpretation: Casual riders have higher variability in trip duration, with more long leisure rides*
+
+```{r plot-trip-duration}
+# Full range
+ggplot(bike_trip_data, aes(x = member_casual, y = trip_duration_sec/60, fill = member_casual)) +
+  geom_boxplot() +
+  labs(
+    title = "Full Range Ride Lengths",
+    x = "Rider Type",
+    y = "Trip Duration (minutes)",
+    caption = "A small number of very long trips skew the lower range"
+  )
+
+# Zoomed in (0–60 min)
+ggplot(bike_trip_data, aes(x = member_casual, y = trip_duration_sec/60, fill = member_casual)) +
+  geom_boxplot(outlier.shape = NA) +
+  coord_cartesian(ylim = c(0, 60)) +
+  labs(
+    title = "Ride Length by Rider Type (Under 60 min)",
+    x = "Rider Type",
+    y = "Trip Duration (minutes)"
+  )
+```
+
+### Day of Week
+```{r trips-per-day}
+trips_per_day_type <- bike_trip_data %>%
+  group_by(member_casual, day_of_week, day_of_week_num) %>%
+  summarise(total_trips = n(), .groups = "drop") %>%
+  arrange(member_casual, day_of_week_num)
+
+trips_per_day_type
+
+day_usage_summary <- trips_per_day_type %>%
+  group_by(member_casual) %>%
+  summarise(
+    least_used_day = day_of_week[which.min(total_trips)],
+    least_trips = min(total_trips),
+    most_used_day = day_of_week[which.max(total_trips)],
+    most_trips = max(total_trips)
+  )
+
+day_usage_summary
+
+```
+
+### Plot: Number of Trips Per Day of Week  
+*Interpretation: Members ride more on weekdays, suggesting commuting use, while casual riders peak on weekends.*
+```{r number-trips-per-day-of-week}
+# Compute max trips per day
+max_count <- max(table(bike_trip_data$day_of_week, bike_trip_data$member_casual)) / 100000
+max_break <- ceiling(max_count)  # round up to nearest whole number
+
+ggplot(data = bike_trip_data) +
+  geom_bar(
+    mapping = aes(x = day_of_week, fill = member_casual, y = after_stat(count)/100000),
+    position = "dodge"
+  ) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  scale_y_continuous(breaks = 0:max_break) +
+  labs(
+    title = "Trips per Day of Week by Rider Type",
+    x = "Day of Week",
+    y = "Number of Bike Trips (x100k)",
+    fill = "Rider Type"
+  )
+
+#separate plots by user
+ggplot(data = bike_trip_data) +
+  geom_bar(
+    aes(x = day_of_week, y = after_stat(count)/100000, fill = member_casual),
+    stat = "count",
+    position = "identity"
+  ) +
+  facet_wrap(~member_casual, scales = "free_y") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  scale_y_continuous(n.breaks = 5) +  # auto-breaks, about 5 ticks per facet
+  labs(
+    title = "Trips per Day of Week by Rider Type",
+    x = "Day of Week",
+    y = "Number of Bike Trips (x100k)",
+    fill = "Rider Type"
+  )
+
+```
+
+### Plot: Duration of Trips Per Day of Week
+
+```{r duration-trips-per-day-of-week}
+# Summarize median trip duration per day and rider type
+median_duration <- bike_trip_data %>%
+  group_by(day_of_week, member_casual) %>%
+  summarise(median_duration_min = median(trip_duration_min, na.rm = TRUE), .groups = "drop")
+
+# Ensure days are in the correct order
+median_duration$day_of_week <- factor(
+  median_duration$day_of_week,
+  levels = c("Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday")
+)
+
+# Plot median trip duration
+
+ggplot(median_duration, aes(x = day_of_week, y = median_duration_min, color = member_casual, group = member_casual)) +
+  geom_point(size = 3) +                        
+  geom_line(linewidth = 1) +                    
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  labs(
+    title = "Median Trip Duration by Day of Week",
+    x = "Day of Week",
+    y = "Median Trip Duration (minutes)",
+    color = "Rider Type"
+  )
+
+#plot by user type
+ggplot(median_duration, aes(x = day_of_week, y = median_duration_min, color = member_casual, group = member_casual)) +
+  geom_point(size = 3) +                        
+  geom_line(linewidth = 1) +                    
+ facet_wrap(~member_casual, scales = "free_y")+
+ theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  labs(
+    title = "Median Trip Duration by Day of Week",
+    x = "Day of Week",
+    y = "Median Trip Duration (minutes)",
+    color = "Rider Type"
+  )
+
+```
+
+### Trips per Month
+*Interpretation: Both rider types show seasonality, but casual usage spikes more in warmer months.*
+
+```{r trips-month}
+# Summarize trips per month and rider type
+monthly_trips <- bike_trip_data %>%
+  group_by(ride_month_name, ride_month_num, member_casual) %>%
+  summarise(trips = n(), .groups = "drop")
+
+# Create ordered factor for month names based on month number
+month_levels <- monthly_trips %>%
+  distinct(ride_month_name, ride_month_num) %>%
+  arrange(ride_month_num) %>%
+  pull(ride_month_name)
+
+monthly_trips$ride_month_name <- factor(monthly_trips$ride_month_name, levels = month_levels)
+
+# Plot
+ggplot(monthly_trips, aes(x = ride_month_name, y = trips, fill = member_casual)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  labs(
+    title = "Number of Trips per Month",
+    x = "Month",
+    y = "Number of Trips",
+    fill = "Rider Type"
+  )
+# Faceted bar plot
+ggplot(monthly_trips, aes(x = ride_month_name, y = trips, fill = member_casual)) +
+  geom_col() +
+  facet_wrap(~member_casual, scales = "free_y") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  labs(
+    title = "Monthly Trips by Rider Type",
+    x = "Month",
+    y = "Number of Trips",
+    fill = "Rider Type"
+  )
+
+monthly_duration <- bike_trip_data %>%
+  group_by(ride_month_name, ride_month_num, member_casual) %>%
+  summarise(median_duration_min = median(trip_duration_min, na.rm = TRUE), .groups = "drop")
+
+# Create ordered factor for month names
+month_levels <- monthly_duration %>%
+  distinct(ride_month_name, ride_month_num) %>%
+  arrange(ride_month_num) %>%
+  pull(ride_month_name)
+
+monthly_duration$ride_month_name <- factor(monthly_duration$ride_month_name, levels = month_levels)
+
+# Plot
+ggplot(monthly_duration, aes(x = ride_month_name, y = median_duration_min, color = member_casual, group = member_casual)) +
+  geom_point(size = 3) +
+  geom_line(linewidth = 1) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  labs(
+    title = "Median Trip Duration per Month",
+    x = "Month",
+    y = "Median Trip Duration (minutes)",
+    color = "Rider Type"
+  )
+# Faceted line plot
+ggplot(monthly_duration, aes(x = ride_month_name, y = median_duration_min, color = member_casual, group = member_casual)) +
+  geom_point(size = 3) +
+  geom_line(linewidth = 1) +
+  facet_wrap(~member_casual, scales = "free_y") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  labs(
+    title = "Median Trip Duration per Month by Rider Type",
+    x = "Month",
+    y = "Median Trip Duration (minutes)",
+    color = "Rider Type"
+  )
+```
+
+### Top Stations  
+*Interpretation: Top stations for casual riders tend to be near tourist areas and parks, while members favor central commuting hubs.*
+
+```{r top-stations}
+top_start_stations <- bike_trip_data %>%
+  group_by(member_casual, start_station_name) %>%
+  summarise(trips = n(), .groups = "drop") %>%
+  arrange(member_casual, desc(trips)) %>%
+  group_by(member_casual) %>%
+  slice_head(n = 10)
+
+top_end_stations <- bike_trip_data %>%
+  group_by(member_casual, end_station_name) %>%
+  summarise(trips = n(), .groups = "drop") %>%
+  arrange(member_casual, desc(trips)) %>%
+  group_by(member_casual) %>%
+  slice_head(n = 10)
+```
+
+```{r top-station-plots}
+ggplot(top_start_stations, aes(x = reorder(start_station_name, trips), y = trips, fill = member_casual)) +
+  geom_col(position = position_dodge2(width = 0.8, preserve = "single"), width = 0.7) +
+  coord_flip() +
+  labs(
+    title = "Top 10 Starting Stations by Rider Type",
+    x = "Station",
+    y = "Number of Trips",
+    fill = "Rider Type"
+  ) +
+  theme_minimal()
+
+
+ggplot(top_end_stations, aes(x = reorder(end_station_name, trips), y = trips, fill = member_casual)) +
+  geom_col(position = position_dodge2(width = 0.8, preserve = "single"), width = 0.7) +
+  coord_flip() +
+  labs(
+    title = "Top 10 Ending Stations by Rider Type",
+    x = "Station",
+    y = "Number of Trips",
+    fill = "Rider Type"
+  ) +
+  theme_minimal()
+
+```
+
