@@ -4,12 +4,103 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Capstone Project: Chicago Bike Analysis</title>
+    <!-- Google Fonts for modern typography -->
+    <link href="https://fonts.googleapis.com/css?family=Roboto:400,700&display=swap" rel="stylesheet">
     <!-- Link to template CSS -->
     <link rel="stylesheet" href="assets/css/main.css">
+    <style>
+        body {
+            font-family: 'Roboto', Arial, sans-serif;
+            background: #f8fafc;
+            color: #222;
+        }
+        .navbar {
+            background: #212529;
+            padding: 1rem 0;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+        }
+        .navbar-brand {
+            color: #fff;
+            font-size: 1.35rem;
+            font-weight: 700;
+            text-decoration: none;
+        }
+        .hero {
+            background: linear-gradient(120deg, #009efd 0%, #2af598 100%);
+            color: #fff;
+            padding: 3rem 2rem 2.5rem 2rem;
+            border-radius: 1.25rem;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.07);
+            margin-top: 2.5rem;
+            text-align: center;
+        }
+        .hero h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+        }
+        .hero p {
+            font-size: 1.2rem;
+            margin-bottom: 2rem;
+        }
+        .btn {
+            display: inline-block;
+            background: #fff;
+            color: #009efd;
+            border-radius: 2rem;
+            padding: 0.9rem 2.2rem;
+            font-size: 1.1rem;
+            font-weight: 700;
+            text-decoration: none;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.06);
+            transition: background 0.2s, color 0.2s;
+        }
+        .btn:hover,
+        .btn:focus {
+            background: #009efd;
+            color: #fff;
+        }
+        .about {
+            background: #fff;
+            padding: 2.2rem 2rem 2rem 2rem;
+            margin: 2.5rem auto 0 auto;
+            border-radius: 1.25rem;
+            box-shadow: 0 4px 18px rgba(0,0,0,0.06);
+            max-width: 700px;
+        }
+        .about h2 {
+            font-size: 1.7rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+            color: #009efd;
+        }
+        .footer {
+            background: #222;
+            color: #fff;
+            text-align: center;
+            padding: 1.2rem 0 1.1rem 0;
+            margin-top: 3rem;
+            border-radius: 1.25rem 1.25rem 0 0;
+            letter-spacing: 0.03em;
+            font-size: 1rem;
+        }
+        @media (max-width: 600px) {
+            .hero, .about {
+                padding: 1.3rem 0.8rem;
+                border-radius: 0.7rem;
+            }
+            .hero h1 {
+                font-size: 1.45rem;
+            }
+            .about h2 {
+                font-size: 1.1rem;
+            }
+        }
+    </style>
 </head>
 <body>
 
-    <!-- Navbar (simplified) -->
+    <!-- Navbar -->
     <nav class="navbar">
         <div class="container">
             <a href="#" class="navbar-brand">Chicago Bike Capstone</a>
@@ -17,7 +108,7 @@
     </nav>
 
     <!-- Main Content -->
-    <main class="container">
+    <main class="container" style="max-width: 900px; margin: auto;">
         <section class="hero">
             <h1>Capstone Project: Divvy Bikes Analysis</h1>
             <p>Exploring 2019–2020 Chicago bike share data with R Markdown and visualizations.</p>
